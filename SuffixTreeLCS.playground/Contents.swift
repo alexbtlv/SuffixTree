@@ -51,12 +51,17 @@ class Node {
     var nodeType: NodeType
     var suffixTree: SuffixTree!
     var suffixLink: Node? = nil
+    var suffixIndex: Int
     weak var parent: Edge? = nil
     var children:[Character:Edge] = [:]
     
     init(suffixTree:SuffixTree!, nodeType:NodeType = .leaf) {
         self.nodeType = nodeType
         self.suffixTree = suffixTree
+        /*suffixIndex will be set to -1 by default and
+         actual suffix index will be set later for leaves
+         at the end of all phases*/
+        self.suffixIndex = -1
         self.uuid = UUID()
     }
     
@@ -185,6 +190,7 @@ class SuffixTree {
         self.active.suffixTree = self
         self.root.suffixTree = self
         buildTree()
+        setSuffixIndexByDFS(node: rootNode, labelHeight: 0)
     }
     
     private func buildTree() {
@@ -253,14 +259,43 @@ class SuffixTree {
         }
         remainder -= 1
     }
+    
+    func setSuffixIndexByDFS(node n: Node?, labelHeight: Int) {
+        guard let n = n else { return }
+        
+        if n.nodeType != .root {
+            // print label
+        }
+        
+        for (_, edge) in n.children {
+            setSuffixIndexByDFS(node: edge.child, labelHeight: labelHeight + edge.length)
+        }
+        
+        if n.nodeType == .leaf {
+            n.suffixIndex = globalEnd.value - labelHeight + 1
+        }
+    }
 }
 
-let t = SuffixTree(with: "abcabx")
+let t = SuffixTree(with: "xabxa#babxba$")
+
+
 
 for (k, v) in t.root.children {
     print(k, v.label)
 }
-t.remainder
+
+let firstChild = t.root.children.first { (k,v) -> Bool in
+    k == "b"
+}
+let secondChild = firstChild?.value.child.children.first(where: { (k,v) -> Bool in
+    k == "x"
+})
+let thirdChild = secondChild?.value.child.children.first(where: { (k,v) -> Bool in
+    k == "b"
+})
+print(thirdChild?.value.child.suffixIndex)
+
 
 
 
