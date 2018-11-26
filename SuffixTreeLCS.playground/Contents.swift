@@ -137,7 +137,11 @@ class ActivePoint {
     }
     
     func nextCharDownActiveEdge(from char: Character) -> Character? {
-        guard let edge = self.edge else { fatalError("Experienced a nil active Edge") }
+        
+        guard let edge = self.edge else {
+            print(self.length, self.suffixTree.remainder, char)
+            fatalError("Experienced a nil active Edge")
+        }
         let corpus = suffixTree.corpus
         
         if edge.diff >= length {
@@ -175,6 +179,7 @@ class ActivePoint {
 class SuffixTree {
     
     let corpus: StringReference
+    let size1: Int? // Size of 1st string
     let root: Node
     let globalEnd: IntReference
     var remainder: Int
@@ -182,6 +187,11 @@ class SuffixTree {
     
     init(with corpus: String) {
         self.corpus = StringReference(corpus)
+        if corpus.contains("#") {
+            self.size1 = corpus.prefix(while: { $0 != Character("#") }).count + 1
+        } else {
+            self.size1 = nil
+        }
         let rootNode = Node(suffixTree: nil, nodeType: .root)
         self.root = rootNode
         self.globalEnd = IntReference(-1)
@@ -246,57 +256,80 @@ class SuffixTree {
         }
     }
     
-    func suffixLinkCheck() {
-        if active.node != root {
+    private func suffixLinkCheck() {
+        if active.node == root && active.length > 0 {
+            active.index += 1
+            active.length -= 1
+        } else if active.node != root {
             if let sufLink = active.node.suffixLink {
                 active.node = sufLink
             } else {
                 active.node = root
             }
-        } else {
-            active.index += 1
-            active.length -= 1
         }
         remainder -= 1
     }
     
-    func setSuffixIndexByDFS(node n: Node?, labelHeight: Int) {
+    private func setSuffixIndexByDFS(node n: Node?, labelHeight: Int) {
         guard let n = n else { return }
         
-        if n.nodeType != .root {
-            // print label
+        if n.nodeType == .leaf {
+            n.suffixIndex = globalEnd.value - labelHeight + 1
+            return
         }
         
         for (_, edge) in n.children {
             setSuffixIndexByDFS(node: edge.child, labelHeight: labelHeight + edge.length)
         }
-        
-        if n.nodeType == .leaf {
-            n.suffixIndex = globalEnd.value - labelHeight + 1
+    }
+    
+    private func doTraversal(node: Node, labelHeight: IntReference, maxHeigth: inout Int, substringStartIndex: inout Int) -> Int? {
+        guard let size1 = size1 else {
+            print("String considered as single. Does not contain separator: #")
+            return nil
         }
+        var ret = -1
+        if node.suffixIndex < 0 {
+            for (_, edge) in node.children {
+                ret = doTraversal(node: edge.child, labelHeight: IntReference(labelHeight.value + edge.length), maxHeigth: &maxHeigth, substringStartIndex: &substringStartIndex) ?? -1
+                if node.suffixIndex == -1 {
+                    node.suffixIndex = ret
+                } else if node.suffixIndex == -2 && ret == -3 ||
+                    node.suffixIndex == -3 && ret == -2 ||
+                    node.suffixIndex == -4 {
+                    // Mark node as XY
+                    node.suffixIndex = -4
+                    // Keep track of deepest node
+                    if maxHeigth < labelHeight.value {
+                        maxHeigth = labelHeight.value
+                        substringStartIndex = 2 // FIX IT!
+                    }
+                }
+            }
+        } else if node.suffixIndex > -1 && node.suffixIndex < size1 { //suffix of X
+            return -2 // Mark node as X
+        } else if node.suffixIndex >= size1 { //suffix of Y
+            return -3 // Mark node as Y
+        }
+        return node.suffixIndex
+    }
+    
+    public func getLongestCommonSubstringLength() -> Int {
+        var maxHeight = 0
+        var substringStartIndex = 0
+        let _ = doTraversal(node: root, labelHeight: IntReference(0), maxHeigth: &maxHeight, substringStartIndex: &substringStartIndex)
+        
+        return maxHeight
     }
 }
 
-let t = SuffixTree(with: "xabxa#babxba$")
+let t = SuffixTree(with: "BACCCBABBBCCCAAABACA#CABBBCBBBAAB$")
 
 
 
-for (k, v) in t.root.children {
-    print(k, v.label)
-}
+t.getLongestCommonSubstringLength()
 
-let firstChild = t.root.children.first { (k,v) -> Bool in
-    k == "b"
-}
-let secondChild = firstChild?.value.child.children.first(where: { (k,v) -> Bool in
-    k == "x"
-})
-let thirdChild = secondChild?.value.child.children.first(where: { (k,v) -> Bool in
-    k == "b"
-})
-print(thirdChild?.value.child.suffixIndex)
-
-
+t.remainder
 
 
 
